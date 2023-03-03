@@ -9,59 +9,67 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+type RevisionInstance struct {
+	definition *Revision
+	state      RevisionState
+}
+
 type ServiceInstance struct {
 	name      string
 	state     ServiceState
-	revisions map[string]RevisionState
+	revisions map[string]*RevisionInstance
 }
 
 type ServiceBlock struct {
-	name       string
-	definition Service
-	instances  map[string]*ServiceInstance
+	name     string
+	labels   map[string]string
+	services map[string]*ServiceInstance
 }
 
-func NewServiceBlock(service Service, size int) *ServiceBlock {
-	instances := make(map[string]*ServiceInstance, size)
-	name := fmt.Sprintf("%s-%s", service.RootName, randomString(6))
+func NewServiceBlock(rootName string, size int, labels map[string]string) *ServiceBlock {
+	services := make(map[string]*ServiceInstance, size)
+	name := fmt.Sprintf("%s-%s", rootName, randomString(6))
 
 	for i := 0; i < size; i++ {
 		name := fmt.Sprintf("%s-%d", name, i)
-		instances[name] = &ServiceInstance{
+		services[name] = &ServiceInstance{
 			name:      name,
 			state:     ServiceMissing,
-			revisions: make(map[string]RevisionState),
+			revisions: make(map[string]*RevisionInstance),
 		}
 	}
 
 	return &ServiceBlock{
 		name,
-		service,
-		instances,
+		labels,
+		services,
 	}
 }
 
-func (sb *ServiceBlock) Create(ctx context.Context, client *CloudRunClient, revision string) error {
+func (sb *ServiceBlock) Create(ctx context.Context, client *CloudRunClient, revision *Revision) error {
 	group, ctx := errgroup.WithContext(ctx)
 
-	for _, instance := range sb.instances {
-		instance.revisions[revision] = RevisionMissing
+	for _, service := range sb.services {
+		service.revisions[revision.Name] = &RevisionInstance{
+			definition: revision,
+			state:      RevisionMissing,
+		}
 	}
 
-	for _, instance := range sb.instances {
-		instance := instance
+	for _, service := range sb.services {
+		service := service
 		group.Go(func() error {
-			instance.state = Creating
-			instance.revisions[revision] = Starting
+			service.state = Creating
+			service.revisions[revision.Name].state = Starting
 
-			err := client.Create(ctx, sb.definition, instance.name, revision)
+			err := client.Create(ctx, service.name, sb.labels, revision)
 			if err != nil {
-				instance.state = ServiceMissing
-				instance.revisions[revision] = RevisionMissing
+				service.state = ServiceMissing
+				service.revisions[revision.Name].state = RevisionMissing
 				return err
 			}
 
-			instance.state = Created
+			service.state = Created
 			return nil
 		})
 	}

@@ -4,6 +4,7 @@ import (
 	"os"
 
 	"github.com/angelini/sblocks/pkg/cloudrun"
+	"github.com/angelini/sblocks/pkg/log"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )
@@ -18,7 +19,6 @@ func NewCmdCreate() *cobra.Command {
 		Short: "Create service block",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
-			log := ctx.Value(logKey).(*zap.Logger)
 
 			client, err := cloudrun.NewCloudRunClient(ctx, os.Getenv("GCP_PROJECT"), os.Getenv("GCP_REGION"))
 			if err != nil {
@@ -26,20 +26,19 @@ func NewCmdCreate() *cobra.Command {
 			}
 			defer client.Close()
 
-			block := cloudrun.NewServiceBlock(cloudrun.Service{
-				RootName: "example",
-				Labels:   map[string]string{},
-				Containers: []cloudrun.Container{
-					{Name: "deno", Image: os.Getenv("DENO_IMAGE")},
-				},
-			}, size)
+			block := cloudrun.NewServiceBlock("example", size, map[string]string{})
 
-			err = block.Create(ctx, client, "1")
+			err = block.Create(ctx, client, &cloudrun.Revision{
+				Name: "1",
+				Containers: map[string]*cloudrun.Container{
+					"deno": {Name: "deno", Image: os.Getenv("DENO_IMAGE")},
+				},
+			})
 			if err != nil {
 				return err
 			}
-			log.Info("created service block", zap.Int("size", size))
 
+			log.Info(ctx, "created service block", zap.Int("size", size))
 			return nil
 		},
 	}

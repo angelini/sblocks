@@ -6,6 +6,8 @@ import (
 
 	run "cloud.google.com/go/run/apiv2"
 	runpb "cloud.google.com/go/run/apiv2/runpb"
+	"github.com/angelini/sblocks/pkg/log"
+	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/api/iterator"
 )
@@ -31,33 +33,34 @@ func (c *CloudRunClient) Close() error {
 	return c.services.Close()
 }
 
-func asPbContainers(containers []Container) []*runpb.Container {
-	result := make([]*runpb.Container, len(containers))
-	for i, container := range containers {
-		result[i] = &runpb.Container{
+func asPbContainers(containers map[string]*Container) []*runpb.Container {
+	result := make([]*runpb.Container, 0, len(containers))
+	for _, container := range containers {
+		result = append(result, &runpb.Container{
 			Name:  container.Name,
 			Image: container.Image,
-		}
+		})
 	}
 	return result
 }
 
-func (c *CloudRunClient) Create(ctx context.Context, service Service, name, revision string) error {
+func (c *CloudRunClient) Create(ctx context.Context, name string, labels map[string]string, revision *Revision) error {
 	req := &runpb.CreateServiceRequest{
 		Parent:    c.parent,
 		ServiceId: name,
 		Service: &runpb.Service{
 			Description: "Managed by sblocks",
-			Labels:      service.Labels,
+			Labels:      labels,
 			Ingress:     runpb.IngressTraffic_INGRESS_TRAFFIC_ALL,
 			Template: &runpb.RevisionTemplate{
-				Revision:   fmt.Sprintf("%s-%s", name, revision),
-				Labels:     service.Labels,
-				Containers: asPbContainers(service.Containers),
+				Revision:   fmt.Sprintf("%s-%s", name, revision.Name),
+				Labels:     labels,
+				Containers: asPbContainers(revision.Containers),
 			},
 		},
 	}
 
+	log.Info(ctx, "start create service", zap.String("name", name))
 	op, err := c.services.CreateService(ctx, req)
 	if err != nil {
 		return err
@@ -68,6 +71,7 @@ func (c *CloudRunClient) Create(ctx context.Context, service Service, name, revi
 		return err
 	}
 
+	log.Info(ctx, "finished create service", zap.String("name", name))
 	return nil
 }
 
@@ -95,6 +99,14 @@ func (c *CloudRunClient) List(ctx context.Context) ([]string, error) {
 	return results, nil
 }
 
+func (c *CloudRunClient) Update(ctx context.Context) error {
+	req := &runpb.UpdateServiceRequest{}
+
+	c.services.UpdateService(ctx, req)
+
+	return nil
+}
+
 func (c *CloudRunClient) DeleteAll(ctx context.Context) error {
 	names, err := c.List(ctx)
 	if err != nil {
@@ -111,6 +123,7 @@ func (c *CloudRunClient) DeleteAll(ctx context.Context) error {
 				Name: name,
 			}
 
+			log.Info(ctx, "start delete service", zap.String("name", name))
 			op, err := c.services.DeleteService(ctx, req)
 			if err != nil {
 				return err

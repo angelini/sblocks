@@ -21,12 +21,13 @@ const (
 )
 
 type Container struct {
-	Name  string
-	Image string
+	Name    string
+	Image   string
+	Command string
+	Args    []string
 }
 
-type Service struct {
-	RootName   string
-	Labels     map[string]string
-	Containers []Container
+type Revision struct {
+	Name       string
+	Containers map[string]*Container
 }

@@ -2,29 +2,22 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 
+	"github.com/angelini/sblocks/pkg/log"
 	"github.com/spf13/cobra"
-	"go.uber.org/zap"
 )
-
-type configKey string
-
-var logKey = configKey("log")
 
 func NewCmdRoot() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "sblocks",
 		SilenceUsage: true,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
-			config := zap.NewDevelopmentConfig()
-			log, err := config.Build()
+			ctx, err := log.Init(cmd.Context())
 			if err != nil {
-				return fmt.Errorf("cannot build zap logger: %w", err)
+				return err
 			}
 
-			ctx := cmd.Context()
-			cmd.SetContext(context.WithValue(ctx, logKey, log))
+			cmd.SetContext(ctx)
 
 			return nil
 		},
