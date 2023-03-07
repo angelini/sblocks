@@ -4,12 +4,10 @@ import (
 	"os"
 
 	"github.com/angelini/sblocks/pkg/cloudrun"
-	"github.com/angelini/sblocks/pkg/log"
 	"github.com/spf13/cobra"
-	"go.uber.org/zap"
 )
 
-func NewCmdList() *cobra.Command {
+func NewCmdUpdate() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List service blocks",
@@ -22,21 +20,7 @@ func NewCmdList() *cobra.Command {
 			}
 			defer client.Close()
 
-			services, err := client.List(ctx)
-			if err != nil {
-				return err
-			}
-
-			for _, service := range services {
-				log.Info(ctx, "service", zap.String("name", service.Name))
-			}
-
-			block, err := cloudrun.LoadServiceBlock(ctx, client, "example")
-			if err != nil {
-				return err
-			}
-
-			log.Info(ctx, "block", zap.Any("b", block))
+			// TODO
 
 			return nil
 		},

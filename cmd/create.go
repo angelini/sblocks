@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"os"
+	"time"
 
 	"github.com/angelini/sblocks/pkg/cloudrun"
 	"github.com/angelini/sblocks/pkg/log"
@@ -29,8 +30,12 @@ func NewCmdCreate() *cobra.Command {
 			block := cloudrun.NewServiceBlock("example", size, map[string]string{})
 
 			err = block.Create(ctx, client, &cloudrun.Revision{
-				Name: "1",
-				Containers: map[string]*cloudrun.Container{
+				Name:           "1",
+				MinScale:       1,
+				MaxScale:       2,
+				MaxConcurrency: 50,
+				Timeout:        time.Minute,
+				Containers: map[string]cloudrun.Container{
 					"deno": {Name: "deno", Image: os.Getenv("DENO_IMAGE")},
 				},
 			})
