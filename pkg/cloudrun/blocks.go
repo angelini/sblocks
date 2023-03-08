@@ -7,8 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/angelini/sblocks/pkg/log"
-	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -17,10 +15,18 @@ type RevisionInstance struct {
 	state      RevisionState
 }
 
+func (ri *RevisionInstance) ShortName() string {
+	return strings.SplitN(ri.definition.Name, "/", 8)[7]
+}
+
 type ServiceInstance struct {
 	name      string
 	state     ServiceState
 	revisions map[string]*RevisionInstance
+}
+
+func (si *ServiceInstance) ShortName() string {
+	return strings.SplitN(si.name, "/", 6)[5]
 }
 
 type ServiceBlock struct {
@@ -29,24 +35,47 @@ type ServiceBlock struct {
 	services map[string]*ServiceInstance
 }
 
-func NewServiceBlock(rootName string, size int, labels map[string]string) *ServiceBlock {
+func CreateServiceBlock(ctx context.Context, client *CloudRunClient, rootName string, size int, labels map[string]string, revision *Revision) (*ServiceBlock, error) {
 	services := make(map[string]*ServiceInstance, size)
 	name := fmt.Sprintf("%s-%s", rootName, randomString(6))
 
-	for i := 0; i < size; i++ {
-		name := fmt.Sprintf("%s-%d", name, i)
-		services[name] = &ServiceInstance{
-			name:      name,
-			state:     NewServiceState(),
-			revisions: make(map[string]*RevisionInstance),
+	{
+		group, ctx := errgroup.WithContext(ctx)
+
+		for i := 0; i < size; i++ {
+			serviceName := fmt.Sprintf("%s-%d", name, i)
+			group.Go(func() error {
+				service, err := client.Create(ctx, serviceName, labels, revision)
+				if err != nil {
+					return err
+				}
+
+				services[serviceName] = &ServiceInstance{
+					name:  fmt.Sprintf("%s/services/%s", client.Parent, serviceName),
+					state: GetServiceState(service),
+				}
+				return nil
+			})
+		}
+
+		err := group.Wait()
+		if err != nil {
+			return nil, err
 		}
 	}
 
-	return &ServiceBlock{
+	sb := ServiceBlock{
 		name,
 		labels,
 		services,
 	}
+
+	err := sb.loadRevisions(ctx, client)
+	if err != nil {
+		return nil, err
+	}
+
+	return &sb, nil
 }
 
 func LoadServiceBlock(ctx context.Context, client *CloudRunClient, name string) (*ServiceBlock, error) {
@@ -54,8 +83,6 @@ func LoadServiceBlock(ctx context.Context, client *CloudRunClient, name string) 
 	if err != nil {
 		return nil, err
 	}
-
-	group, ctx := errgroup.WithContext(ctx)
 
 	var labels map[string]string
 	instances := make(map[string]*ServiceInstance)
@@ -73,17 +100,29 @@ func LoadServiceBlock(ctx context.Context, client *CloudRunClient, name string) 
 			name:  service.Name,
 			state: GetServiceState(service),
 		}
-
-		log.Info(ctx, "instances", zap.Any("i", instances))
 	}
 
-	for _, instance := range instances {
+	sb := ServiceBlock{
+		name:     name,
+		labels:   labels,
+		services: instances,
+	}
+
+	err = sb.loadRevisions(ctx, client)
+	if err != nil {
+		return nil, err
+	}
+
+	return &sb, nil
+}
+
+func (sb *ServiceBlock) loadRevisions(ctx context.Context, client *CloudRunClient) error {
+	group, ctx := errgroup.WithContext(ctx)
+
+	for _, instance := range sb.services {
 		instance := instance
 		group.Go(func() error {
-			name := strings.TrimPrefix(instance.name, fmt.Sprintf("%s/services/", client.Parent))
-			client.GetIAM(ctx, name)
-
-			revisions, err := client.ListRevisions(ctx, name)
+			revisions, err := client.ListRevisions(ctx, instance.ShortName())
 			if err != nil {
 				return err
 			}
@@ -97,53 +136,32 @@ func LoadServiceBlock(ctx context.Context, client *CloudRunClient, name string) 
 				}
 			}
 
-			log.Info(ctx, "revisions", zap.Any("r", revisionInstances))
-
 			instance.revisions = revisionInstances
 			return nil
 		})
 	}
 
-	err = group.Wait()
-	if err != nil {
-		return nil, err
-	}
-
-	return &ServiceBlock{
-		name:     name,
-		labels:   labels,
-		services: instances,
-	}, nil
+	return group.Wait()
 }
 
-func (sb *ServiceBlock) Create(ctx context.Context, client *CloudRunClient, revision *Revision) error {
-	group, ctx := errgroup.WithContext(ctx)
-
-	// for _, service := range sb.services {
-	// 	service.revisions[revision.Name] = &RevisionInstance{
-	// 		definition: revision,
-	// 		state:      RevisionMissing,
-	// 	}
-	// }
-
-	for _, instance := range sb.services {
-		instance := instance
-		group.Go(func() error {
-			// instance.revisions[revision.Name].state = Starting
-
-			service, err := client.Create(ctx, instance.name, sb.labels, revision)
-			if err != nil {
-				instance.state = ErrorServiceState()
-				// instance.revisions[revision.Name].state = RevisionMissing
-				return err
-			}
-
-			instance.state = GetServiceState(service)
-			return nil
-		})
+func (sb *ServiceBlock) Display() []string {
+	labels := make([]string, 0, len(sb.labels))
+	for key, value := range sb.labels {
+		labels = append(labels, fmt.Sprintf("%s=%s", key, value))
 	}
 
-	return group.Wait()
+	results := []string{
+		fmt.Sprintf("%s [%s]:", sb.name, strings.Join(labels, ", ")),
+	}
+
+	for _, service := range sb.services {
+		results = append(results, fmt.Sprintf("  > %s: %s", service.ShortName(), service.state.String()))
+		for _, revision := range service.revisions {
+			results = append(results, fmt.Sprintf("    - %s: %s", strings.TrimPrefix(revision.ShortName(), service.ShortName()+"-"), revision.state.String()))
+		}
+	}
+
+	return results
 }
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz")

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"time"
 
@@ -27,9 +28,7 @@ func NewCmdCreate() *cobra.Command {
 			}
 			defer client.Close()
 
-			block := cloudrun.NewServiceBlock("example", size, map[string]string{})
-
-			err = block.Create(ctx, client, &cloudrun.Revision{
+			block, err := cloudrun.CreateServiceBlock(ctx, client, "example", size, map[string]string{}, &cloudrun.Revision{
 				Name:           "1",
 				MinScale:       1,
 				MaxScale:       2,
@@ -44,6 +43,11 @@ func NewCmdCreate() *cobra.Command {
 			}
 
 			log.Info(ctx, "created service block", zap.Int("size", size))
+			fmt.Println()
+			for _, line := range block.Display() {
+				fmt.Println(line)
+			}
+
 			return nil
 		},
 	}

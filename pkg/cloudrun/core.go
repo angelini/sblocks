@@ -10,7 +10,7 @@ type ServiceState struct {
 	isReconciling      bool
 	observedGeneration int64
 	latestRevision     string
-	isTerminal         bool
+	isReady            bool
 }
 
 func NewServiceState() ServiceState {
@@ -18,7 +18,7 @@ func NewServiceState() ServiceState {
 		isReconciling:      false,
 		observedGeneration: -1,
 		latestRevision:     "",
-		isTerminal:         false,
+		isReady:            false,
 	}
 }
 
@@ -27,7 +27,7 @@ func ErrorServiceState() ServiceState {
 		isReconciling:      false,
 		observedGeneration: -1,
 		latestRevision:     "",
-		isTerminal:         true,
+		isReady:            false,
 	}
 }
 
@@ -36,7 +36,7 @@ func GetServiceState(service *pb.Service) ServiceState {
 		isReconciling:      service.Reconciling,
 		observedGeneration: service.ObservedGeneration,
 		latestRevision:     service.LatestReadyRevision,
-		isTerminal:         service.TerminalCondition != nil,
+		isReady:            service.TerminalCondition.Type == "Ready",
 	}
 }
 
@@ -44,19 +44,34 @@ func (s *ServiceState) IsReconciling() bool {
 	return s.isReconciling
 }
 
-func (s *ServiceState) IsRunning() bool {
-	return !s.isTerminal && s.latestRevision != ""
+func (s *ServiceState) IsReady() bool {
+	return s.isReady
+}
+
+func (s *ServiceState) String() string {
+	result := "STOPPED"
+	if s.IsReady() {
+		result = "READY"
+	}
+
+	if s.IsReconciling() {
+		result += "(*)"
+	}
+
+	return result
 }
 
 type RevisionState struct {
 	isReconciling      bool
 	observedGeneration int64
+	isDeleted          bool
 }
 
 func GetRevisionState(revision *pb.Revision) RevisionState {
 	return RevisionState{
 		isReconciling:      revision.Reconciling,
 		observedGeneration: revision.ObservedGeneration,
+		isDeleted:          revision.DeleteTime != nil,
 	}
 }
 
@@ -69,6 +84,23 @@ func NewRevisionState() ServiceState {
 
 func (s *RevisionState) IsReconciling() bool {
 	return s.isReconciling
+}
+
+func (s *RevisionState) IsRunning() bool {
+	return !s.isDeleted
+}
+
+func (s *RevisionState) String() string {
+	result := "DELETED"
+	if s.IsRunning() {
+		result = "RUNNING"
+	}
+
+	if s.IsReconciling() {
+		result += "(*)"
+	}
+
+	return result
 }
 
 type Container struct {
