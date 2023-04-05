@@ -1,6 +1,7 @@
 package cloudrun
 
 import (
+	"strings"
 	"time"
 
 	pb "cloud.google.com/go/run/apiv2/runpb"
@@ -75,10 +76,11 @@ func GetRevisionState(revision *pb.Revision) RevisionState {
 	}
 }
 
-func NewRevisionState() ServiceState {
-	return ServiceState{
+func NewRevisionState() RevisionState {
+	return RevisionState{
 		isReconciling:      false,
 		observedGeneration: -1,
+		isDeleted:          false,
 	}
 }
 
@@ -140,11 +142,19 @@ func RevisionDefinition(revision *pb.Revision) Revision {
 	}
 
 	return Revision{
-		Name:           revision.Name,
+		Name:           ParseRevisionName(revision.Name),
 		MinScale:       uint32(revision.Scaling.MinInstanceCount),
 		MaxScale:       uint32(revision.Scaling.MaxInstanceCount),
 		MaxConcurrency: uint32(revision.MaxInstanceRequestConcurrency),
 		Timeout:        revision.Timeout.AsDuration(),
 		Containers:     containers,
 	}
+}
+
+func ParseServiceName(resource string) string {
+	return strings.SplitN(resource, "/", 6)[5]
+}
+
+func ParseRevisionName(resource string) string {
+	return strings.SplitN(resource, "/", 8)[7]
 }

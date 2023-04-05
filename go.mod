@@ -3,6 +3,7 @@ module github.com/angelini/sblocks
 go 1.19
 
 require (
+	cloud.google.com/go/iam v0.8.0
 	cloud.google.com/go/run v0.8.0
 	github.com/spf13/cobra v1.6.1
 	go.uber.org/zap v1.24.0
@@ -14,7 +15,6 @@ require (
 	cloud.google.com/go v0.105.0 // indirect
 	cloud.google.com/go/compute v1.14.0 // indirect
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
-	cloud.google.com/go/iam v0.8.0 // indirect
 	cloud.google.com/go/longrunning v0.3.0 // indirect
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
 	github.com/golang/protobuf v1.5.2 // indirect

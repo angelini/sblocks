@@ -3,9 +3,11 @@ package cloudrun
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	iampb "cloud.google.com/go/iam/apiv1/iampb"
 	run "cloud.google.com/go/run/apiv2"
+	"cloud.google.com/go/run/apiv2/runpb"
 	pb "cloud.google.com/go/run/apiv2/runpb"
 	"github.com/angelini/sblocks/pkg/log"
 	"go.uber.org/zap"
@@ -62,7 +64,6 @@ func (c *CloudRunClient) Create(ctx context.Context, name string, labels map[str
 			Ingress:     pb.IngressTraffic_INGRESS_TRAFFIC_ALL,
 			Template: &pb.RevisionTemplate{
 				Revision:   fmt.Sprintf("%s-%s", name, revision.Name),
-				Labels:     labels,
 				Containers: asPbContainers(revision.Containers),
 			},
 		},
@@ -131,29 +132,47 @@ func (c *CloudRunClient) ListRevisions(ctx context.Context, serviceName string) 
 	return revisions, nil
 }
 
-func (c *CloudRunClient) GetIAM(ctx context.Context, serviceName string) error {
-	req := &iampb.GetIamPolicyRequest{
+func (c *CloudRunClient) AllowPublicAccess(ctx context.Context, serviceName string) error {
+	req := &iampb.SetIamPolicyRequest{
 		Resource: fmt.Sprintf("%s/services/%s", c.Parent, serviceName),
+		Policy: &iampb.Policy{
+			Bindings: []*iampb.Binding{
+				{Role: "roles/run.invoker", Members: []string{"allUsers"}},
+			},
+		},
 	}
 
-	resp, err := c.services.GetIamPolicy(ctx, req)
+	_, err := c.services.SetIamPolicy(ctx, req)
 	if err != nil {
 		return err
-	}
-
-	log.Info(ctx, "iam", zap.String("policy", resp.String()))
-	for _, binding := range resp.Bindings {
-		log.Info(ctx, "iam binding", zap.String("binding", binding.String()))
 	}
 
 	return nil
 }
 
-func (c *CloudRunClient) Update(ctx context.Context) error {
-	req := &pb.UpdateServiceRequest{}
+func (c *CloudRunClient) Update(ctx context.Context, serviceName string, revision *Revision) error {
+	req := &pb.UpdateServiceRequest{
+		Service: &runpb.Service{
+			Name: fmt.Sprintf("%s/services/%s", c.Parent, serviceName),
+			Template: &pb.RevisionTemplate{
+				Revision:   fmt.Sprintf("%s-%s", serviceName, revision.Name),
+				Containers: asPbContainers(revision.Containers),
+			},
+		},
+	}
 
-	c.services.UpdateService(ctx, req)
+	log.Info(ctx, "start update service", zap.String("name", serviceName))
+	op, err := c.services.UpdateService(ctx, req)
+	if err != nil {
+		return err
+	}
 
+	_, err = op.Wait(ctx)
+	if err != nil {
+		return err
+	}
+
+	log.Info(ctx, "finished update service", zap.String("name", serviceName))
 	return nil
 }
 
@@ -167,13 +186,14 @@ func (c *CloudRunClient) DeleteAll(ctx context.Context) error {
 
 	for _, service := range services {
 		name := service.Name
+		shortName := strings.SplitN(name, "/", 6)[5]
 
 		group.Go(func() error {
 			req := &pb.DeleteServiceRequest{
 				Name: name,
 			}
 
-			log.Info(ctx, "start delete service", zap.String("name", name))
+			log.Info(ctx, "start delete service", zap.String("name", shortName))
 			op, err := c.services.DeleteService(ctx, req)
 			if err != nil {
 				return err
@@ -184,6 +204,7 @@ func (c *CloudRunClient) DeleteAll(ctx context.Context) error {
 				return err
 			}
 
+			log.Info(ctx, "finished delete service", zap.String("name", shortName))
 			return nil
 		})
 	}

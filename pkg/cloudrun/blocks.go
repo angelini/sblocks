@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"sort"
 	"strings"
 	"time"
 
@@ -15,27 +16,37 @@ type RevisionInstance struct {
 	state      RevisionState
 }
 
-func (ri *RevisionInstance) ShortName() string {
-	return strings.SplitN(ri.definition.Name, "/", 8)[7]
-}
-
 type ServiceInstance struct {
 	name      string
 	state     ServiceState
+	uri       string
 	revisions map[string]*RevisionInstance
 }
 
-func (si *ServiceInstance) ShortName() string {
-	return strings.SplitN(si.name, "/", 6)[5]
+func (si *ServiceInstance) orderedRevisions() []*RevisionInstance {
+	keys := make([]string, 0, len(si.revisions))
+	for key := range si.revisions {
+		keys = append(keys, key)
+	}
+
+	sort.Strings(keys)
+
+	instances := make([]*RevisionInstance, 0, len(keys))
+	for _, key := range keys {
+		instances = append(instances, si.revisions[key])
+	}
+
+	return instances
 }
 
 type ServiceBlock struct {
 	name     string
+	public   bool
 	labels   map[string]string
 	services map[string]*ServiceInstance
 }
 
-func CreateServiceBlock(ctx context.Context, client *CloudRunClient, rootName string, size int, labels map[string]string, revision *Revision) (*ServiceBlock, error) {
+func CreateServiceBlock(ctx context.Context, client *CloudRunClient, rootName string, public bool, size int, labels map[string]string, revision *Revision) (*ServiceBlock, error) {
 	services := make(map[string]*ServiceInstance, size)
 	name := fmt.Sprintf("%s-%s", rootName, randomString(6))
 
@@ -50,8 +61,16 @@ func CreateServiceBlock(ctx context.Context, client *CloudRunClient, rootName st
 					return err
 				}
 
+				if public {
+					err = client.AllowPublicAccess(ctx, serviceName)
+					if err != nil {
+						return err
+					}
+				}
+
 				services[serviceName] = &ServiceInstance{
-					name:  fmt.Sprintf("%s/services/%s", client.Parent, serviceName),
+					name:  serviceName,
+					uri:   service.Uri,
 					state: GetServiceState(service),
 				}
 				return nil
@@ -66,6 +85,7 @@ func CreateServiceBlock(ctx context.Context, client *CloudRunClient, rootName st
 
 	sb := ServiceBlock{
 		name,
+		public,
 		labels,
 		services,
 	}
@@ -97,8 +117,9 @@ func LoadServiceBlock(ctx context.Context, client *CloudRunClient, name string) 
 		}
 
 		instances[service.Name] = &ServiceInstance{
-			name:  service.Name,
+			name:  ParseServiceName(service.Name),
 			state: GetServiceState(service),
+			uri:   service.Uri,
 		}
 	}
 
@@ -119,10 +140,10 @@ func LoadServiceBlock(ctx context.Context, client *CloudRunClient, name string) 
 func (sb *ServiceBlock) loadRevisions(ctx context.Context, client *CloudRunClient) error {
 	group, ctx := errgroup.WithContext(ctx)
 
-	for _, instance := range sb.services {
-		instance := instance
+	for _, service := range sb.services {
+		service := service
 		group.Go(func() error {
-			revisions, err := client.ListRevisions(ctx, instance.ShortName())
+			revisions, err := client.ListRevisions(ctx, service.name)
 			if err != nil {
 				return err
 			}
@@ -136,7 +157,29 @@ func (sb *ServiceBlock) loadRevisions(ctx context.Context, client *CloudRunClien
 				}
 			}
 
-			instance.revisions = revisionInstances
+			service.revisions = revisionInstances
+			return nil
+		})
+	}
+
+	return group.Wait()
+}
+
+func (sb *ServiceBlock) CreateRevision(ctx context.Context, client *CloudRunClient, revision *Revision) error {
+	group, ctx := errgroup.WithContext(ctx)
+
+	for _, service := range sb.services {
+		service := service
+		group.Go(func() error {
+			err := client.Update(ctx, service.name, revision)
+			if err != nil {
+				return err
+			}
+
+			sb.services[service.name].revisions[revision.Name] = &RevisionInstance{
+				definition: revision,
+				state:      NewRevisionState(),
+			}
 			return nil
 		})
 	}
@@ -154,14 +197,31 @@ func (sb *ServiceBlock) Display() []string {
 		fmt.Sprintf("%s [%s]:", sb.name, strings.Join(labels, ", ")),
 	}
 
-	for _, service := range sb.services {
-		results = append(results, fmt.Sprintf("  > %s: %s", service.ShortName(), service.state.String()))
-		for _, revision := range service.revisions {
-			results = append(results, fmt.Sprintf("    - %s: %s", strings.TrimPrefix(revision.ShortName(), service.ShortName()+"-"), revision.state.String()))
+	for _, service := range sb.orderedServices() {
+		results = append(results, fmt.Sprintf("  > %s: %s", service.name, service.state.String()))
+		results = append(results, fmt.Sprintf("      %s", service.uri))
+		for _, revision := range service.orderedRevisions() {
+			results = append(results, fmt.Sprintf("    - %s: %s", strings.TrimPrefix(revision.definition.Name, service.name+"-"), revision.state.String()))
 		}
 	}
 
 	return results
+}
+
+func (sb *ServiceBlock) orderedServices() []*ServiceInstance {
+	keys := make([]string, 0, len(sb.services))
+	for key := range sb.services {
+		keys = append(keys, key)
+	}
+
+	sort.Strings(keys)
+
+	instances := make([]*ServiceInstance, 0, len(keys))
+	for _, key := range keys {
+		instances = append(instances, sb.services[key])
+	}
+
+	return instances
 }
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz")

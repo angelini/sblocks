@@ -28,7 +28,7 @@ func NewCmdCreate() *cobra.Command {
 			}
 			defer client.Close()
 
-			block, err := cloudrun.CreateServiceBlock(ctx, client, "example", size, map[string]string{}, &cloudrun.Revision{
+			block, err := cloudrun.CreateServiceBlock(ctx, client, "example", true, size, map[string]string{}, &cloudrun.Revision{
 				Name:           "1",
 				MinScale:       1,
 				MaxScale:       2,
@@ -43,6 +43,18 @@ func NewCmdCreate() *cobra.Command {
 			}
 
 			log.Info(ctx, "created service block", zap.Int("size", size))
+
+			block.CreateRevision(ctx, client, &cloudrun.Revision{
+				Name:           "2",
+				MinScale:       1,
+				MaxScale:       2,
+				MaxConcurrency: 50,
+				Timeout:        time.Minute,
+				Containers: map[string]cloudrun.Container{
+					"deno": {Name: "deno", Image: os.Getenv("DENO_IMAGE")},
+				},
+			})
+
 			fmt.Println()
 			for _, line := range block.Display() {
 				fmt.Println(line)
