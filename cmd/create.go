@@ -13,7 +13,8 @@ import (
 
 func NewCmdCreate() *cobra.Command {
 	var (
-		size int
+		environment string
+		size        int
 	)
 
 	cmd := &cobra.Command{
@@ -28,7 +29,11 @@ func NewCmdCreate() *cobra.Command {
 			}
 			defer client.Close()
 
-			block, err := cloudrun.CreateServiceBlock(ctx, client, "example", true, size, map[string]string{}, &cloudrun.Revision{
+			labels := map[string]string{
+				"sb_environment": environment,
+			}
+
+			block, err := cloudrun.CreateServiceBlock(ctx, client, true, size, labels, &cloudrun.Revision{
 				Name:           "1",
 				MinScale:       1,
 				MaxScale:       2,
@@ -64,7 +69,10 @@ func NewCmdCreate() *cobra.Command {
 		},
 	}
 
+	cmd.PersistentFlags().StringVarP(&environment, "environment", "e", "", "Name of the environment that the block will be added to")
 	cmd.PersistentFlags().IntVarP(&size, "size", "s", 10, "Size of the service block")
+
+	cmd.MarkPersistentFlagRequired("environment")
 
 	return cmd
 }

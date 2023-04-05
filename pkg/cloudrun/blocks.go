@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-	"sort"
 	"strings"
 	"time"
 
+	"github.com/angelini/sblocks/pkg/maps"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -23,22 +23,6 @@ type ServiceInstance struct {
 	revisions map[string]*RevisionInstance
 }
 
-func (si *ServiceInstance) orderedRevisions() []*RevisionInstance {
-	keys := make([]string, 0, len(si.revisions))
-	for key := range si.revisions {
-		keys = append(keys, key)
-	}
-
-	sort.Strings(keys)
-
-	instances := make([]*RevisionInstance, 0, len(keys))
-	for _, key := range keys {
-		instances = append(instances, si.revisions[key])
-	}
-
-	return instances
-}
-
 type ServiceBlock struct {
 	name     string
 	public   bool
@@ -46,9 +30,9 @@ type ServiceBlock struct {
 	services map[string]*ServiceInstance
 }
 
-func CreateServiceBlock(ctx context.Context, client *CloudRunClient, rootName string, public bool, size int, labels map[string]string, revision *Revision) (*ServiceBlock, error) {
+func CreateServiceBlock(ctx context.Context, client *CloudRunClient, public bool, size int, labels map[string]string, revision *Revision) (*ServiceBlock, error) {
 	services := make(map[string]*ServiceInstance, size)
-	name := fmt.Sprintf("%s-%s", rootName, randomString(6))
+	name := randomString(6)
 
 	{
 		group, ctx := errgroup.WithContext(ctx)
@@ -98,43 +82,48 @@ func CreateServiceBlock(ctx context.Context, client *CloudRunClient, rootName st
 	return &sb, nil
 }
 
-func LoadServiceBlock(ctx context.Context, client *CloudRunClient, name string) (*ServiceBlock, error) {
+func LoadServiceBlocks(ctx context.Context, client *CloudRunClient, environment string) (map[string]*ServiceBlock, error) {
 	services, err := client.List(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	var labels map[string]string
-	instances := make(map[string]*ServiceInstance)
+	blocks := make(map[string]*ServiceBlock)
 
 	for _, service := range services {
-		if !strings.HasPrefix(service.Name, fmt.Sprintf("%s/services/%s-", client.Parent, name)) {
+		envLabel, found := service.Labels["sb_environment"]
+		if !found || envLabel != environment {
 			continue
 		}
 
-		if labels == nil {
-			labels = service.Labels
+		serviceName := ParseServiceName(service.Name)
+		blockName := strings.Split(serviceName, "-")[0]
+
+		block, found := blocks[blockName]
+		if !found {
+			block = &ServiceBlock{
+				name:     blockName,
+				labels:   service.Labels,
+				services: make(map[string]*ServiceInstance),
+			}
+			blocks[blockName] = block
 		}
 
-		instances[service.Name] = &ServiceInstance{
-			name:  ParseServiceName(service.Name),
+		block.services[serviceName] = &ServiceInstance{
+			name:  serviceName,
 			state: GetServiceState(service),
 			uri:   service.Uri,
 		}
 	}
 
-	sb := ServiceBlock{
-		name:     name,
-		labels:   labels,
-		services: instances,
+	for _, block := range blocks {
+		err = block.loadRevisions(ctx, client)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	err = sb.loadRevisions(ctx, client)
-	if err != nil {
-		return nil, err
-	}
-
-	return &sb, nil
+	return blocks, nil
 }
 
 func (sb *ServiceBlock) loadRevisions(ctx context.Context, client *CloudRunClient) error {
@@ -197,31 +186,15 @@ func (sb *ServiceBlock) Display() []string {
 		fmt.Sprintf("%s [%s]:", sb.name, strings.Join(labels, ", ")),
 	}
 
-	for _, service := range sb.orderedServices() {
+	for _, service := range maps.SortedRange(sb.services) {
 		results = append(results, fmt.Sprintf("  > %s: %s", service.name, service.state.String()))
 		results = append(results, fmt.Sprintf("      %s", service.uri))
-		for _, revision := range service.orderedRevisions() {
+		for _, revision := range maps.SortedRange(service.revisions) {
 			results = append(results, fmt.Sprintf("    - %s: %s", strings.TrimPrefix(revision.definition.Name, service.name+"-"), revision.state.String()))
 		}
 	}
 
 	return results
-}
-
-func (sb *ServiceBlock) orderedServices() []*ServiceInstance {
-	keys := make([]string, 0, len(sb.services))
-	for key := range sb.services {
-		keys = append(keys, key)
-	}
-
-	sort.Strings(keys)
-
-	instances := make([]*ServiceInstance, 0, len(keys))
-	for _, key := range keys {
-		instances = append(instances, sb.services[key])
-	}
-
-	return instances
 }
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz")

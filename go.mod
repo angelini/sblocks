@@ -7,6 +7,7 @@ require (
 	cloud.google.com/go/run v0.8.0
 	github.com/spf13/cobra v1.6.1
 	go.uber.org/zap v1.24.0
+	golang.org/x/exp v0.0.0-20230321023759-10a507213a29
 	golang.org/x/sync v0.1.0
 	google.golang.org/api v0.108.0
 )
