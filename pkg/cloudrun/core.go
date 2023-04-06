@@ -1,6 +1,7 @@
 package cloudrun
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -41,21 +42,13 @@ func GetServiceState(service *pb.Service) ServiceState {
 	}
 }
 
-func (s *ServiceState) IsReconciling() bool {
-	return s.isReconciling
-}
-
-func (s *ServiceState) IsReady() bool {
-	return s.isReady
-}
-
 func (s *ServiceState) String() string {
 	result := "STOPPED"
-	if s.IsReady() {
+	if s.isReady {
 		result = "READY"
 	}
 
-	if s.IsReconciling() {
+	if s.isReconciling {
 		result += "(*)"
 	}
 
@@ -66,13 +59,15 @@ type RevisionState struct {
 	isReconciling      bool
 	observedGeneration int64
 	isDeleted          bool
+	traffic            int
 }
 
-func GetRevisionState(revision *pb.Revision) RevisionState {
+func GetRevisionState(revision *pb.Revision, traffic int) RevisionState {
 	return RevisionState{
 		isReconciling:      revision.Reconciling,
 		observedGeneration: revision.ObservedGeneration,
 		isDeleted:          revision.DeleteTime != nil,
+		traffic:            traffic,
 	}
 }
 
@@ -84,21 +79,18 @@ func NewRevisionState() RevisionState {
 	}
 }
 
-func (s *RevisionState) IsReconciling() bool {
-	return s.isReconciling
-}
+func (r *RevisionState) String() string {
+	result := "INACTIVE"
 
-func (s *RevisionState) IsRunning() bool {
-	return !s.isDeleted
-}
-
-func (s *RevisionState) String() string {
-	result := "DELETED"
-	if s.IsRunning() {
-		result = "RUNNING"
+	if r.traffic > 0 {
+		result = fmt.Sprintf("ACTIVE (%d)", r.traffic)
 	}
 
-	if s.IsReconciling() {
+	if r.isDeleted {
+		result = "DELETED"
+	}
+
+	if r.isReconciling {
 		result += "(*)"
 	}
 
@@ -157,4 +149,25 @@ func ParseServiceName(resource string) string {
 
 func ParseRevisionName(resource string) string {
 	return strings.SplitN(resource, "/", 8)[7]
+}
+
+type TrafficStatus struct {
+	latest    bool
+	revisions map[string]int32
+}
+
+func NewTrafficStatus(statuses []*pb.TrafficTargetStatus) *TrafficStatus {
+	if len(statuses) == 1 && statuses[0].Type == pb.TrafficTargetAllocationType_TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST {
+		return &TrafficStatus{latest: true}
+	}
+
+	revisions := make(map[string]int32, len(statuses))
+	for _, status := range statuses {
+		revisions[status.Revision] = status.Percent
+	}
+
+	return &TrafficStatus{
+		latest:    false,
+		revisions: revisions,
+	}
 }

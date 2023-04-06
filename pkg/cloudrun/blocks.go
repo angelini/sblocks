@@ -20,6 +20,7 @@ type ServiceInstance struct {
 	name      string
 	state     ServiceState
 	uri       string
+	traffic   *TrafficStatus
 	revisions map[string]*RevisionInstance
 }
 
@@ -53,9 +54,10 @@ func CreateServiceBlock(ctx context.Context, client *CloudRunClient, public bool
 				}
 
 				services[serviceName] = &ServiceInstance{
-					name:  serviceName,
-					uri:   service.Uri,
-					state: GetServiceState(service),
+					name:    serviceName,
+					uri:     service.Uri,
+					state:   GetServiceState(service),
+					traffic: NewTrafficStatus(service.TrafficStatuses),
 				}
 				return nil
 			})
@@ -110,9 +112,10 @@ func LoadServiceBlocks(ctx context.Context, client *CloudRunClient, environment 
 		}
 
 		block.services[serviceName] = &ServiceInstance{
-			name:  serviceName,
-			state: GetServiceState(service),
-			uri:   service.Uri,
+			name:    serviceName,
+			state:   GetServiceState(service),
+			uri:     service.Uri,
+			traffic: NewTrafficStatus(service.TrafficStatuses),
 		}
 	}
 
@@ -138,11 +141,18 @@ func (sb *ServiceBlock) loadRevisions(ctx context.Context, client *CloudRunClien
 			}
 
 			revisionInstances := make(map[string]*RevisionInstance, len(revisions))
-			for _, revision := range revisions {
+			for idx, revision := range revisions {
+				percentage := 0
+				if idx == 0 && service.traffic.latest {
+					percentage = 100
+				} else {
+					percentage = int(service.traffic.revisions[revision.Name])
+				}
+
 				definition := RevisionDefinition(revision)
 				revisionInstances[revision.Name] = &RevisionInstance{
 					definition: &definition,
-					state:      GetRevisionState(revision),
+					state:      GetRevisionState(revision, percentage),
 				}
 			}
 
@@ -160,7 +170,7 @@ func (sb *ServiceBlock) CreateRevision(ctx context.Context, client *CloudRunClie
 	for _, service := range sb.services {
 		service := service
 		group.Go(func() error {
-			err := client.Update(ctx, service.name, revision)
+			err := client.Update(ctx, service.name, sb.labels, revision)
 			if err != nil {
 				return err
 			}
@@ -188,7 +198,7 @@ func (sb *ServiceBlock) Display() []string {
 
 	for _, service := range maps.SortedRange(sb.services) {
 		results = append(results, fmt.Sprintf("  > %s: %s", service.name, service.state.String()))
-		results = append(results, fmt.Sprintf("      %s", service.uri))
+		results = append(results, fmt.Sprintf("    uri: %s", service.uri))
 		for _, revision := range maps.SortedRange(service.revisions) {
 			results = append(results, fmt.Sprintf("    - %s: %s", strings.TrimPrefix(revision.definition.Name, service.name+"-"), revision.state.String()))
 		}

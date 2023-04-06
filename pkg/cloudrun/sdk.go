@@ -64,6 +64,7 @@ func (c *CloudRunClient) Create(ctx context.Context, name string, labels map[str
 			Ingress:     pb.IngressTraffic_INGRESS_TRAFFIC_ALL,
 			Template: &pb.RevisionTemplate{
 				Revision:   fmt.Sprintf("%s-%s", name, revision.Name),
+				Labels:     labels,
 				Containers: asPbContainers(revision.Containers),
 			},
 		},
@@ -150,12 +151,14 @@ func (c *CloudRunClient) AllowPublicAccess(ctx context.Context, serviceName stri
 	return nil
 }
 
-func (c *CloudRunClient) Update(ctx context.Context, serviceName string, revision *Revision) error {
+func (c *CloudRunClient) Update(ctx context.Context, serviceName string, labels map[string]string, revision *Revision) error {
 	req := &pb.UpdateServiceRequest{
 		Service: &runpb.Service{
-			Name: fmt.Sprintf("%s/services/%s", c.Parent, serviceName),
+			Name:   fmt.Sprintf("%s/services/%s", c.Parent, serviceName),
+			Labels: labels,
 			Template: &pb.RevisionTemplate{
 				Revision:   fmt.Sprintf("%s-%s", serviceName, revision.Name),
+				Labels:     labels,
 				Containers: asPbContainers(revision.Containers),
 			},
 		},
