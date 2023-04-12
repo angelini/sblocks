@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package executorpb;
+
+option go_package = "github.com/angelini/sblocks/internal/executor/pb";
+
+service Executor {
+    rpc GetService(GetServiceRequest) returns (GetServiceResponse);
+
+    rpc UpdateEnvironment(UpdateEnvironmentRequest) returns (UpdateEnvironmentResponse);
+}
+
+message GetServiceRequest {
+    int64 id = 1;
+}
+
+message GetServiceResponse {
+    int64 id = 1;
+    string uri = 2;
+}
+
+message UpdateEnvironmentRequest {
+    string input = 1;
+}
+
+message UpdateEnvironmentResponse {
+    string output = 1;
+}

@@ -3,13 +3,15 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/angelini/sblocks/pkg/cloudrun"
 	"github.com/angelini/sblocks/pkg/maps"
 	"github.com/spf13/cobra"
+	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
-func NewCmdList() *cobra.Command {
+func NewCmdRouter() *cobra.Command {
 	var (
 		environment string
 	)
@@ -19,6 +21,15 @@ func NewCmdList() *cobra.Command {
 		Short: "List service blocks",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
+
+			etcd, err := clientv3.New(clientv3.Config{
+				Endpoints:   []string{"localhost:2379", "localhost:22379", "localhost:32379"},
+				DialTimeout: 5 * time.Second,
+			})
+			if err != nil {
+				return err
+			}
+			defer etcd.Close()
 
 			client, err := cloudrun.NewClient(ctx, os.Getenv("GCP_PROJECT"), os.Getenv("GCP_REGION"))
 			if err != nil {

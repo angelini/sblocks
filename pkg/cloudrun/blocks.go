@@ -13,6 +13,7 @@ import (
 
 type RevisionInstance struct {
 	definition *Revision
+	labels     map[string]string
 	state      RevisionState
 }
 
@@ -31,7 +32,7 @@ type ServiceBlock struct {
 	services map[string]*ServiceInstance
 }
 
-func CreateServiceBlock(ctx context.Context, client *CloudRunClient, public bool, size int, labels map[string]string, revision *Revision) (*ServiceBlock, error) {
+func CreateServiceBlock(ctx context.Context, client *Client, public bool, size int, labels map[string]string, revision *Revision) (*ServiceBlock, error) {
 	services := make(map[string]*ServiceInstance, size)
 	name := randomString(6)
 
@@ -84,7 +85,7 @@ func CreateServiceBlock(ctx context.Context, client *CloudRunClient, public bool
 	return &sb, nil
 }
 
-func LoadServiceBlocks(ctx context.Context, client *CloudRunClient, environment string) (map[string]*ServiceBlock, error) {
+func LoadServiceBlocks(ctx context.Context, client *Client, environment string) (map[string]*ServiceBlock, error) {
 	services, err := client.List(ctx)
 	if err != nil {
 		return nil, err
@@ -129,7 +130,7 @@ func LoadServiceBlocks(ctx context.Context, client *CloudRunClient, environment 
 	return blocks, nil
 }
 
-func (sb *ServiceBlock) loadRevisions(ctx context.Context, client *CloudRunClient) error {
+func (sb *ServiceBlock) loadRevisions(ctx context.Context, client *Client) error {
 	group, ctx := errgroup.WithContext(ctx)
 
 	for _, service := range sb.services {
@@ -152,6 +153,7 @@ func (sb *ServiceBlock) loadRevisions(ctx context.Context, client *CloudRunClien
 				definition := RevisionDefinition(revision)
 				revisionInstances[revision.Name] = &RevisionInstance{
 					definition: &definition,
+					labels:     revision.Labels,
 					state:      GetRevisionState(revision, percentage),
 				}
 			}
@@ -164,7 +166,7 @@ func (sb *ServiceBlock) loadRevisions(ctx context.Context, client *CloudRunClien
 	return group.Wait()
 }
 
-func (sb *ServiceBlock) CreateRevision(ctx context.Context, client *CloudRunClient, revision *Revision) error {
+func (sb *ServiceBlock) CreateRevision(ctx context.Context, client *Client, revision *Revision) error {
 	group, ctx := errgroup.WithContext(ctx)
 
 	for _, service := range sb.services {
@@ -175,36 +177,51 @@ func (sb *ServiceBlock) CreateRevision(ctx context.Context, client *CloudRunClie
 				return err
 			}
 
-			sb.services[service.name].revisions[revision.Name] = &RevisionInstance{
-				definition: revision,
-				state:      NewRevisionState(),
-			}
 			return nil
 		})
 	}
 
-	return group.Wait()
+	err := group.Wait()
+	if err != nil {
+		return err
+	}
+
+	err = sb.loadRevisions(ctx, client)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (sb *ServiceBlock) Display() []string {
-	labels := make([]string, 0, len(sb.labels))
-	for key, value := range sb.labels {
-		labels = append(labels, fmt.Sprintf("%s=%s", key, value))
-	}
-
 	results := []string{
-		fmt.Sprintf("%s [%s]:", sb.name, strings.Join(labels, ", ")),
+		fmt.Sprintf("%s [%s]:", sb.name, formatLabels(sb.labels)),
 	}
 
-	for _, service := range maps.SortedRange(sb.services) {
+	for _, service := range maps.SortedValues(sb.services) {
 		results = append(results, fmt.Sprintf("  > %s: %s", service.name, service.state.String()))
 		results = append(results, fmt.Sprintf("    uri: %s", service.uri))
-		for _, revision := range maps.SortedRange(service.revisions) {
-			results = append(results, fmt.Sprintf("    - %s: %s", strings.TrimPrefix(revision.definition.Name, service.name+"-"), revision.state.String()))
+		for _, revision := range maps.SortedValues(service.revisions) {
+			results = append(results, fmt.Sprintf(
+				"    - %s[%s]: %s",
+				strings.TrimPrefix(revision.definition.Name, service.name+"-"),
+				formatLabels(revision.labels),
+				revision.state.String(),
+			))
 		}
 	}
 
 	return results
+}
+
+func formatLabels(labels map[string]string) string {
+	entries := make([]string, 0, len(labels))
+	for _, key := range maps.SortedKeys(labels) {
+		entries = append(entries, fmt.Sprintf("%s=%s", key, labels[key]))
+	}
+
+	return strings.Join(entries, ", ")
 }
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz")

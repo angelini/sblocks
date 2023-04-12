@@ -39,6 +39,10 @@ func Init(ctx context.Context) (context.Context, error) {
 	return context.WithValue(ctx, logKey, log), nil
 }
 
+func GetLogger(ctx context.Context) *zap.Logger {
+	return ctx.Value(logKey).(*zap.Logger)
+}
+
 func Info(ctx context.Context, message string, fields ...zap.Field) {
 	log := ctx.Value(logKey).(*zap.Logger)
 	log.Info(message, fields...)

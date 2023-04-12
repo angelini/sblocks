@@ -10,7 +10,7 @@ type OrderedComparable interface {
 	comparable
 }
 
-func SortedRange[K OrderedComparable, V any](m map[K]V) []V {
+func SortedValues[K OrderedComparable, V any](m map[K]V) []V {
 	keys := make([]K, 0, len(m))
 	for key := range m {
 		keys = append(keys, key)
@@ -24,4 +24,14 @@ func SortedRange[K OrderedComparable, V any](m map[K]V) []V {
 	}
 
 	return values
+}
+
+func SortedKeys[K OrderedComparable, V any](m map[K]V) []K {
+	keys := make([]K, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
+	}
+
+	slices.Sort(keys)
+	return keys
 }
