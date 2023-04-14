@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/angelini/sblocks/pkg/log"
+	"github.com/angelini/sblocks/internal/log"
 	"go.uber.org/zap"
 	"golang.org/x/net/http2"
 )

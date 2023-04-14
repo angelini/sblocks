@@ -4,8 +4,8 @@ import (
 	"context"
 
 	pb "github.com/angelini/sblocks/internal/executorpb"
+	"github.com/angelini/sblocks/internal/log"
 	"github.com/angelini/sblocks/pkg/cloudrun"
-	"github.com/angelini/sblocks/pkg/log"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_zap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
 	grpc_recovery "github.com/grpc-ecosystem/go-grpc-middleware/recovery"

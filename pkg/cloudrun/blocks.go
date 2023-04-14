@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/angelini/sblocks/pkg/maps"
+	"github.com/angelini/sblocks/internal/maps"
 	"golang.org/x/sync/errgroup"
 )
 

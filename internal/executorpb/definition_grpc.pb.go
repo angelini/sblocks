@@ -19,8 +19,9 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	Executor_GetService_FullMethodName    = "/executorpb.Executor/GetService"
-	Executor_UpdateRuntime_FullMethodName = "/executorpb.Executor/UpdateRuntime"
+	Executor_GetService_FullMethodName     = "/executorpb.Executor/GetService"
+	Executor_GetRuntimeInfo_FullMethodName = "/executorpb.Executor/GetRuntimeInfo"
+	Executor_UpdateRuntime_FullMethodName  = "/executorpb.Executor/UpdateRuntime"
 )
 
 // ExecutorClient is the client API for Executor service.
@@ -28,6 +29,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ExecutorClient interface {
 	GetService(ctx context.Context, in *GetServiceRequest, opts ...grpc.CallOption) (*GetServiceResponse, error)
+	GetRuntimeInfo(ctx context.Context, in *GetRuntimeInfoRequest, opts ...grpc.CallOption) (*GetRuntimeInfoResponse, error)
 	UpdateRuntime(ctx context.Context, in *UpdateRuntimeRequest, opts ...grpc.CallOption) (*UpdateRuntimeResponse, error)
 }
 
@@ -48,6 +50,15 @@ func (c *executorClient) GetService(ctx context.Context, in *GetServiceRequest, 
 	return out, nil
 }
 
+func (c *executorClient) GetRuntimeInfo(ctx context.Context, in *GetRuntimeInfoRequest, opts ...grpc.CallOption) (*GetRuntimeInfoResponse, error) {
+	out := new(GetRuntimeInfoResponse)
+	err := c.cc.Invoke(ctx, Executor_GetRuntimeInfo_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *executorClient) UpdateRuntime(ctx context.Context, in *UpdateRuntimeRequest, opts ...grpc.CallOption) (*UpdateRuntimeResponse, error) {
 	out := new(UpdateRuntimeResponse)
 	err := c.cc.Invoke(ctx, Executor_UpdateRuntime_FullMethodName, in, out, opts...)
@@ -62,6 +73,7 @@ func (c *executorClient) UpdateRuntime(ctx context.Context, in *UpdateRuntimeReq
 // for forward compatibility
 type ExecutorServer interface {
 	GetService(context.Context, *GetServiceRequest) (*GetServiceResponse, error)
+	GetRuntimeInfo(context.Context, *GetRuntimeInfoRequest) (*GetRuntimeInfoResponse, error)
 	UpdateRuntime(context.Context, *UpdateRuntimeRequest) (*UpdateRuntimeResponse, error)
 	mustEmbedUnimplementedExecutorServer()
 }
@@ -72,6 +84,9 @@ type UnimplementedExecutorServer struct {
 
 func (UnimplementedExecutorServer) GetService(context.Context, *GetServiceRequest) (*GetServiceResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetService not implemented")
+}
+func (UnimplementedExecutorServer) GetRuntimeInfo(context.Context, *GetRuntimeInfoRequest) (*GetRuntimeInfoResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetRuntimeInfo not implemented")
 }
 func (UnimplementedExecutorServer) UpdateRuntime(context.Context, *UpdateRuntimeRequest) (*UpdateRuntimeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateRuntime not implemented")
@@ -107,6 +122,24 @@ func _Executor_GetService_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Executor_GetRuntimeInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRuntimeInfoRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ExecutorServer).GetRuntimeInfo(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Executor_GetRuntimeInfo_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ExecutorServer).GetRuntimeInfo(ctx, req.(*GetRuntimeInfoRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Executor_UpdateRuntime_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpdateRuntimeRequest)
 	if err := dec(in); err != nil {
@@ -135,6 +168,10 @@ var Executor_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetService",
 			Handler:    _Executor_GetService_Handler,
+		},
+		{
+			MethodName: "GetRuntimeInfo",
+			Handler:    _Executor_GetRuntimeInfo_Handler,
 		},
 		{
 			MethodName: "UpdateRuntime",

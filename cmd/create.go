@@ -5,8 +5,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/angelini/sblocks/internal/log"
 	"github.com/angelini/sblocks/pkg/cloudrun"
-	"github.com/angelini/sblocks/pkg/log"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )

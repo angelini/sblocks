@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/angelini/sblocks/internal/maps"
 	"github.com/angelini/sblocks/pkg/cloudrun"
-	"github.com/angelini/sblocks/pkg/maps"
 	"github.com/spf13/cobra"
 )
 

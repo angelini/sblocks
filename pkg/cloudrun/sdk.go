@@ -9,7 +9,7 @@ import (
 	run "cloud.google.com/go/run/apiv2"
 	"cloud.google.com/go/run/apiv2/runpb"
 	pb "cloud.google.com/go/run/apiv2/runpb"
-	"github.com/angelini/sblocks/pkg/log"
+	"github.com/angelini/sblocks/internal/log"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/api/iterator"
