@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package executorpb;
+
+option go_package = "github.com/angelini/sblocks/internal/executor/pb";
+
+service Executor {
+    rpc GetService(GetServiceRequest) returns (GetServiceResponse);
+
+    rpc UpdateRuntime(UpdateRuntimeRequest) returns (UpdateRuntimeResponse);
+}
+
+enum State {
+    INITIALIZING = 0;
+    READY = 1;
+}
+
+message GetServiceRequest {
+    string runtime = 1;
+    int64 id = 2;
+}
+
+message GetServiceResponse {
+    string runtime = 1;
+    int64 id = 2;
+    string uri = 3;
+    State state = 4;
+}
+
+message UpdateRuntimeRequest {
+    string runtime = 1;
+    string image = 2;
+}
+
+message UpdateRuntimeResponse {
+    string output = 1;
+}

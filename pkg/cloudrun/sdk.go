@@ -15,13 +15,13 @@ import (
 	"google.golang.org/api/iterator"
 )
 
-type CloudRunClient struct {
+type Client struct {
 	Parent    string
 	services  *run.ServicesClient
 	revisions *run.RevisionsClient
 }
 
-func NewCloudRunClient(ctx context.Context, project, location string) (*CloudRunClient, error) {
+func NewClient(ctx context.Context, project, location string) (*Client, error) {
 	services, err := run.NewServicesClient(ctx)
 	if err != nil {
 		return nil, err
@@ -32,14 +32,14 @@ func NewCloudRunClient(ctx context.Context, project, location string) (*CloudRun
 		return nil, err
 	}
 
-	return &CloudRunClient{
+	return &Client{
 		Parent:    fmt.Sprintf("projects/%s/locations/%s", project, location),
 		services:  services,
 		revisions: revisions,
 	}, nil
 }
 
-func (c *CloudRunClient) Close() error {
+func (c *Client) Close() error {
 	return c.services.Close()
 }
 
@@ -54,7 +54,7 @@ func asPbContainers(containers map[string]Container) []*pb.Container {
 	return result
 }
 
-func (c *CloudRunClient) Create(ctx context.Context, name string, labels map[string]string, revision *Revision) (*pb.Service, error) {
+func (c *Client) Create(ctx context.Context, name string, labels map[string]string, revision *Revision) (*pb.Service, error) {
 	req := &pb.CreateServiceRequest{
 		Parent:    c.Parent,
 		ServiceId: name,
@@ -85,7 +85,7 @@ func (c *CloudRunClient) Create(ctx context.Context, name string, labels map[str
 	return service, nil
 }
 
-func (c *CloudRunClient) List(ctx context.Context) ([]*pb.Service, error) {
+func (c *Client) List(ctx context.Context) ([]*pb.Service, error) {
 	req := &pb.ListServicesRequest{
 		Parent: c.Parent,
 	}
@@ -109,7 +109,7 @@ func (c *CloudRunClient) List(ctx context.Context) ([]*pb.Service, error) {
 	return services, nil
 }
 
-func (c *CloudRunClient) ListRevisions(ctx context.Context, serviceName string) ([]*pb.Revision, error) {
+func (c *Client) ListRevisions(ctx context.Context, serviceName string) ([]*pb.Revision, error) {
 	req := &pb.ListRevisionsRequest{
 		Parent: fmt.Sprintf("%s/services/%s", c.Parent, serviceName),
 	}
@@ -133,7 +133,7 @@ func (c *CloudRunClient) ListRevisions(ctx context.Context, serviceName string) 
 	return revisions, nil
 }
 
-func (c *CloudRunClient) AllowPublicAccess(ctx context.Context, serviceName string) error {
+func (c *Client) AllowPublicAccess(ctx context.Context, serviceName string) error {
 	req := &iampb.SetIamPolicyRequest{
 		Resource: fmt.Sprintf("%s/services/%s", c.Parent, serviceName),
 		Policy: &iampb.Policy{
@@ -151,7 +151,7 @@ func (c *CloudRunClient) AllowPublicAccess(ctx context.Context, serviceName stri
 	return nil
 }
 
-func (c *CloudRunClient) Update(ctx context.Context, serviceName string, labels map[string]string, revision *Revision) error {
+func (c *Client) Update(ctx context.Context, serviceName string, labels map[string]string, revision *Revision) error {
 	req := &pb.UpdateServiceRequest{
 		Service: &runpb.Service{
 			Name:   fmt.Sprintf("%s/services/%s", c.Parent, serviceName),
@@ -179,7 +179,7 @@ func (c *CloudRunClient) Update(ctx context.Context, serviceName string, labels 
 	return nil
 }
 
-func (c *CloudRunClient) DeleteAll(ctx context.Context) error {
+func (c *Client) DeleteAll(ctx context.Context) error {
 	services, err := c.List(ctx)
 	if err != nil {
 		return err
