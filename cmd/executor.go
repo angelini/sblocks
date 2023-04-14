@@ -2,23 +2,28 @@ package cmd
 
 import (
 	"fmt"
+	"net"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/angelini/sblocks/pkg/cloudrun"
-	"github.com/angelini/sblocks/pkg/maps"
+	"github.com/angelini/sblocks/pkg/executor"
+	"github.com/angelini/sblocks/pkg/log"
 	"github.com/spf13/cobra"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.uber.org/zap"
 )
 
-func NewCmdRouter() *cobra.Command {
+func NewCmdExecutor() *cobra.Command {
 	var (
-		environment string
+		port int
 	)
 
 	cmd := &cobra.Command{
-		Use:   "list",
-		Short: "List service blocks",
+		Use:   "executor",
+		Short: "Executor GRPC service",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
 
@@ -37,25 +42,26 @@ func NewCmdRouter() *cobra.Command {
 			}
 			defer client.Close()
 
-			blocks, err := cloudrun.LoadServiceBlocks(ctx, client, environment)
+			socket, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to listen on TCP port %d: %w", port, err)
 			}
 
-			for idx, block := range maps.SortedValues(blocks) {
-				if idx != 0 {
-					fmt.Println("---------------")
-				}
-				for _, line := range block.Display() {
-					fmt.Println(line)
-				}
-			}
+			server := executor.NewServer(ctx, etcd, client)
 
-			return nil
+			osSignals := make(chan os.Signal, 1)
+			signal.Notify(osSignals, os.Interrupt, syscall.SIGTERM)
+			go func() {
+				<-osSignals
+				server.GracefulStop()
+			}()
+
+			log.Info(ctx, "start executor", zap.Int("port", port))
+			return server.Serve(socket)
 		},
 	}
 
-	cmd.PersistentFlags().StringVarP(&environment, "environment", "e", "", "Name of the environment that the block will be added to")
+	cmd.PersistentFlags().IntVarP(&port, "port", "p", 5020, "Listen port")
 
 	cmd.MarkPersistentFlagRequired("environment")
 

@@ -6,6 +6,7 @@ PKG_GO_FILES := $(shell find pkg/ -type f -name '*.go')
 
 .PHONY: install build 
 .PHONY: db reset-db
+.PHONY: executor router
 .PHONY: client-list client-create client-delete
 
 bin/etcd:
@@ -41,6 +42,12 @@ db:
 
 reset-db:
 	rm tmp/sblocks.etcd
+
+executor:
+	go run main.go executor
+
+router:
+	go run main.go router
 
 ENV_NAME := "example"
 
