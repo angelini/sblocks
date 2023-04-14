@@ -5,6 +5,7 @@ go 1.19
 require (
 	cloud.google.com/go/iam v0.8.0
 	cloud.google.com/go/run v0.8.0
+	github.com/google/uuid v1.3.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/spf13/cobra v1.6.1
 	go.etcd.io/etcd/client/v3 v3.5.7

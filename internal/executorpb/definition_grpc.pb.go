@@ -20,6 +20,7 @@ const _ = grpc.SupportPackageIsVersion7
 
 const (
 	Executor_GetService_FullMethodName    = "/executorpb.Executor/GetService"
+	Executor_GetRuntime_FullMethodName    = "/executorpb.Executor/GetRuntime"
 	Executor_UpdateRuntime_FullMethodName = "/executorpb.Executor/UpdateRuntime"
 )
 
@@ -28,6 +29,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ExecutorClient interface {
 	GetService(ctx context.Context, in *GetServiceRequest, opts ...grpc.CallOption) (*GetServiceResponse, error)
+	GetRuntime(ctx context.Context, in *GetRuntimeRequest, opts ...grpc.CallOption) (*GetRuntimeResponse, error)
 	UpdateRuntime(ctx context.Context, in *UpdateRuntimeRequest, opts ...grpc.CallOption) (*UpdateRuntimeResponse, error)
 }
 
@@ -48,6 +50,15 @@ func (c *executorClient) GetService(ctx context.Context, in *GetServiceRequest, 
 	return out, nil
 }
 
+func (c *executorClient) GetRuntime(ctx context.Context, in *GetRuntimeRequest, opts ...grpc.CallOption) (*GetRuntimeResponse, error) {
+	out := new(GetRuntimeResponse)
+	err := c.cc.Invoke(ctx, Executor_GetRuntime_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *executorClient) UpdateRuntime(ctx context.Context, in *UpdateRuntimeRequest, opts ...grpc.CallOption) (*UpdateRuntimeResponse, error) {
 	out := new(UpdateRuntimeResponse)
 	err := c.cc.Invoke(ctx, Executor_UpdateRuntime_FullMethodName, in, out, opts...)
@@ -62,6 +73,7 @@ func (c *executorClient) UpdateRuntime(ctx context.Context, in *UpdateRuntimeReq
 // for forward compatibility
 type ExecutorServer interface {
 	GetService(context.Context, *GetServiceRequest) (*GetServiceResponse, error)
+	GetRuntime(context.Context, *GetRuntimeRequest) (*GetRuntimeResponse, error)
 	UpdateRuntime(context.Context, *UpdateRuntimeRequest) (*UpdateRuntimeResponse, error)
 	mustEmbedUnimplementedExecutorServer()
 }
@@ -72,6 +84,9 @@ type UnimplementedExecutorServer struct {
 
 func (UnimplementedExecutorServer) GetService(context.Context, *GetServiceRequest) (*GetServiceResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetService not implemented")
+}
+func (UnimplementedExecutorServer) GetRuntime(context.Context, *GetRuntimeRequest) (*GetRuntimeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetRuntime not implemented")
 }
 func (UnimplementedExecutorServer) UpdateRuntime(context.Context, *UpdateRuntimeRequest) (*UpdateRuntimeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateRuntime not implemented")
@@ -107,6 +122,24 @@ func _Executor_GetService_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Executor_GetRuntime_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRuntimeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ExecutorServer).GetRuntime(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Executor_GetRuntime_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ExecutorServer).GetRuntime(ctx, req.(*GetRuntimeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Executor_UpdateRuntime_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpdateRuntimeRequest)
 	if err := dec(in); err != nil {
@@ -135,6 +168,10 @@ var Executor_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetService",
 			Handler:    _Executor_GetService_Handler,
+		},
+		{
+			MethodName: "GetRuntime",
+			Handler:    _Executor_GetRuntime_Handler,
 		},
 		{
 			MethodName: "UpdateRuntime",

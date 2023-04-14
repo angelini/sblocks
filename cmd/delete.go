@@ -3,8 +3,8 @@ package cmd
 import (
 	"os"
 
+	"github.com/angelini/sblocks/internal/log"
 	"github.com/angelini/sblocks/pkg/cloudrun"
-	"github.com/angelini/sblocks/pkg/log"
 	"github.com/spf13/cobra"
 )
 

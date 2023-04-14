@@ -5,16 +5,19 @@ import (
 	"os"
 	"time"
 
+	"github.com/angelini/sblocks/internal/log"
 	"github.com/angelini/sblocks/pkg/cloudrun"
-	"github.com/angelini/sblocks/pkg/log"
+	cr "github.com/angelini/sblocks/pkg/cloudrun"
+	"github.com/angelini/sblocks/pkg/core"
+	rt "github.com/angelini/sblocks/pkg/runtime"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )
 
 func NewCmdCreate() *cobra.Command {
 	var (
-		environment string
-		size        int
+		runtime string
+		size    int
 	)
 
 	cmd := &cobra.Command{
@@ -23,29 +26,26 @@ func NewCmdCreate() *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
 
-			client, err := cloudrun.NewClient(ctx, os.Getenv("GCP_PROJECT"), os.Getenv("GCP_REGION"))
+			client, err := cr.NewClient(ctx, os.Getenv("GCP_PROJECT"), os.Getenv("GCP_REGION"))
 			if err != nil {
 				return err
 			}
 			defer client.Close()
 
 			labels := map[string]string{
-				"sb_environment": environment,
+				"sb_runtime": runtime,
 			}
 
-			block, err := cloudrun.CreateServiceBlock(ctx, client, true, size, labels, &cloudrun.Revision{
+			runtime := rt.NewRuntime(runtime, true, size, labels, core.Revision{
 				Name:           "1",
 				MinScale:       1,
 				MaxScale:       2,
 				MaxConcurrency: 50,
 				Timeout:        time.Minute,
-				Containers: map[string]cloudrun.Container{
+				Containers: map[string]core.Container{
 					"deno": {Name: "deno", Image: os.Getenv("DENO_IMAGE")},
 				},
 			})
-			if err != nil {
-				return err
-			}
 
 			log.Info(ctx, "created service block", zap.Int("size", size))
 
@@ -61,7 +61,7 @@ func NewCmdCreate() *cobra.Command {
 			})
 
 			fmt.Println()
-			for _, line := range block.Display() {
+			for _, line := range runtime.Display() {
 				fmt.Println(line)
 			}
 
@@ -69,10 +69,10 @@ func NewCmdCreate() *cobra.Command {
 		},
 	}
 
-	cmd.PersistentFlags().StringVarP(&environment, "environment", "e", "", "Name of the environment that the block will be added to")
-	cmd.PersistentFlags().IntVarP(&size, "size", "s", 10, "Size of the service block")
+	cmd.PersistentFlags().StringVarP(&runtime, "runtime", "r", "", "Name of the runtime that will be created")
+	cmd.PersistentFlags().IntVarP(&size, "size", "s", 10, "Free size")
 
-	cmd.MarkPersistentFlagRequired("environment")
+	cmd.MarkPersistentFlagRequired("runtime")
 
 	return cmd
 }

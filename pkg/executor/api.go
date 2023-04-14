@@ -31,8 +31,12 @@ func (a *ExecutorApi) GetService(ctx context.Context, req *pb.GetServiceRequest)
 	}, nil
 }
 
-func (a *ExecutorApi) UpdateRuntime(ctx context.Context, req *pb.UpdateRuntimeRequest) (*pb.UpdateRuntimeResponse, error) {
-	return &pb.UpdateRuntimeResponse{
-		Output: "",
+func (a *ExecutorApi) GetRuntime(ctx context.Context, req *pb.GetRuntimeRequest) (*pb.GetRuntimeResponse, error) {
+	return &pb.GetRuntimeResponse{
+		Runtime: req.Runtime,
 	}, nil
+}
+
+func (a *ExecutorApi) UpdateRuntime(ctx context.Context, req *pb.UpdateRuntimeRequest) (*pb.UpdateRuntimeResponse, error) {
+	return &pb.UpdateRuntimeResponse{}, nil
 }

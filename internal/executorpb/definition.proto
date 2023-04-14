@@ -7,6 +7,8 @@ option go_package = "github.com/angelini/sblocks/internal/executor/pb";
 service Executor {
     rpc GetService(GetServiceRequest) returns (GetServiceResponse);
 
+    rpc GetRuntime(GetRuntimeRequest) returns (GetRuntimeResponse);
+
     rpc UpdateRuntime(UpdateRuntimeRequest) returns (UpdateRuntimeResponse);
 }
 
@@ -27,11 +29,26 @@ message GetServiceResponse {
     State state = 4;
 }
 
-message UpdateRuntimeRequest {
-    string runtime = 1;
+message Container {
+    string name = 1;
     string image = 2;
+    string command = 3;
+    repeated string args = 4;
 }
 
-message UpdateRuntimeResponse {
-    string output = 1;
+message GetRuntimeRequest {
+    string runtime = 1; 
 }
+
+message GetRuntimeResponse {
+    string runtime = 1;
+    repeated Container container = 2;
+    int32 size = 3;
+}
+
+message UpdateRuntimeRequest {
+    string runtime = 1;
+    repeated Container container = 2;
+}
+
+message UpdateRuntimeResponse {}

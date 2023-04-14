@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"github.com/angelini/sblocks/pkg/log"
+	"github.com/angelini/sblocks/internal/log"
 	"github.com/angelini/sblocks/pkg/router"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"

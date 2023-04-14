@@ -3,7 +3,7 @@ package cmd
 import (
 	"context"
 
-	"github.com/angelini/sblocks/pkg/log"
+	"github.com/angelini/sblocks/internal/log"
 	"github.com/spf13/cobra"
 )
 
